@@ -11,10 +11,10 @@ const EpochSize = 8
 // AppendBinary appends the canonical [EpochSize]-byte big-endian
 // encoding of e to dst.
 //
-// The encoding is a stable wire contract (RFC-0014): a persisted
-// watermark or a fence carried in a message must read back
-// identically across builds and years; the layout will not change
-// within a major version. The zero [Epoch] has a wire form — it is
+// The encoding is a stable wire contract: a persisted watermark or
+// a fence carried in a message must read back identically across
+// builds and years; the layout will not change within a major
+// version. The zero [Epoch] has a wire form — it is
 // the number zero, and a freshly-created scope legitimately persists
 // it as its watermark seed.
 //

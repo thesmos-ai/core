@@ -84,7 +84,7 @@
 // # Encoding
 //
 // The binary form is 8 bytes, big-endian, two's complement, and is a
-// stable wire contract (RFC-0014). The text form renders all eight
+// stable wire contract. The text form renders all eight
 // places and round-trips exactly. Because [Fixed64] implements
 // [encoding.TextMarshaler], [encoding/json] encodes it as a JSON
 // string rather than a number, which keeps the value out of a float64

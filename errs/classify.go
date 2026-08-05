@@ -27,7 +27,8 @@ import (
 // their producers because the producers are plain sentinels by
 // design: they must classify correctly even when returned by an
 // adapter that has never imported this package. The set is closed
-// and grows only by RFC, exactly like [Class] itself.
+// and grows only by deliberate decision, exactly like [Class]
+// itself.
 //
 // Everything else is [Unspecified], and context.Canceled and
 // context.DeadlineExceeded are deliberately left to that default
