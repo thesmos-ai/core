@@ -7,6 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `epoch` fencing (RFC-0026): `Admissible` and the `Watermark`
+  adapter kit apply the admit-equal fence laws over the existing
+  `Epoch` type; `ErrFenced` reports revoked authority and
+  classifies as Conflict; `Epoch` gains the canonical 8-byte
+  big-endian binary encoding for persisted watermarks.
+- `coretest/epochtest`: conformance suite driving a consumer's
+  entire fenced write surface through supersession, asserting
+  rejection without mutation, admit-equal, zero-bypass, and the
+  reseed law.
+- `coretest/versiontest`: `OrderingTraps` fixtures that make any
+  ordering assumption over opaque `version.Version` tokens
+  observable in a consumer's suite.
+
+### Changed
+
+- `version.Version` is equality-only by documented law: it proves
+  identity, never order. Ordering across time is `epoch.Epoch`'s
+  axis. See RFC-0026.
+
+### Fixed
+
+- `errs.Classify` now actually recognises `version.ErrMismatch`
+  and `version.ErrExists` as Conflict. Both sentinels documented
+  the classification since RFC-0015, but `Classify` only ever
+  recognised the two standard-library sentinels — a bare mismatch
+  from an adapter classified as Unspecified. `epoch.ErrFenced`
+  joins the recognised set.
+
 ## [0.6.1] - 2026-08-05
 
 ### Added

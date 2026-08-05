@@ -88,7 +88,7 @@ Start from [`docs/templates/RFC.md`](../templates/RFC.md).
 | [0023](0023-resilience-primitives.md) | Resilience Primitives | Accepted |
 | [0024](0024-request-coalescing.md) | Request Coalescing | Draft |
 | [0025](0025-fixed-point-decimals.md) | Fixed-Point Decimals | Accepted |
-| [0026](0026-ordering-and-fencing.md) | Ordering and Fencing | Draft |
+| [0026](0026-ordering-and-fencing.md) | Ordering and Fencing | Accepted |
 
 ## Canonical first RFC
 

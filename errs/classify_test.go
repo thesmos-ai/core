@@ -13,7 +13,9 @@ import (
 
 	"go.thesmos.sh/testkit"
 
+	"go.thesmos.sh/core/epoch"
 	"go.thesmos.sh/core/errs"
+	"go.thesmos.sh/core/version"
 )
 
 // stubError is an error type that classifies itself, the shape a
@@ -52,6 +54,41 @@ func TestClassify(t *testing.T) {
 		t.Parallel()
 		testkit.Equal(t, errs.Classify(stubError{class: errs.Denied}), errs.Denied,
 			"Classify must return the Classifier's class")
+	})
+
+	t.Run("the core sentinels classify without wrapping", func(t *testing.T) {
+		t.Parallel()
+
+		// The recognised set, asserted one by one: these are plain
+		// sentinels returned by adapters that may never import errs,
+		// so recognition here is the only route to their class.
+		cases := map[string]struct {
+			err  error
+			want errs.Class
+		}{
+			"version mismatch": {version.ErrMismatch, errs.Conflict},
+			"version exists":   {version.ErrExists, errs.Conflict},
+			"epoch fenced":     {epoch.ErrFenced, errs.Conflict},
+		}
+		for name, tc := range cases {
+			t.Run(name, func(t *testing.T) {
+				t.Parallel()
+				testkit.Equal(t, errs.Classify(tc.err), tc.want,
+					"a bare core sentinel must classify")
+				testkit.Equal(t, errs.Classify(fmt.Errorf("adapter: %w", tc.err)), tc.want,
+					"a wrapped core sentinel must classify through the tree")
+			})
+		}
+	})
+
+	t.Run("an explicit Classifier beats a recognised sentinel", func(t *testing.T) {
+		t.Parallel()
+
+		// A producer that classified its own error has reasoned about
+		// it; recognition is the fallback, not the override.
+		tagged := errs.WithClass(epoch.ErrFenced, errs.Denied)
+		testkit.Equal(t, errs.Classify(tagged), errs.Denied,
+			"WithClass must win over sentinel recognition")
 	})
 
 	t.Run("a wrapped Classifier is found through the tree", func(t *testing.T) {

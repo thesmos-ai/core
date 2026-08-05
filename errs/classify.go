@@ -6,17 +6,28 @@ package errs
 import (
 	"errors"
 	"io/fs"
+
+	"go.thesmos.sh/core/epoch"
+	"go.thesmos.sh/core/version"
 )
 
 // Classify reports what a caller should do about err.
 //
 // It walks err's tree and returns the [Class] of the first
-// [Classifier] it finds. Failing that, it recognises two standard
-// library sentinels, so a producer that has never heard of this
+// [Classifier] it finds. Failing that, it recognises a small closed
+// set of sentinels, so a producer that has never heard of this
 // package still classifies usefully:
 //
 //   - [fs.ErrNotExist] — [NotFound]
 //   - [errors.ErrUnsupported] — [Unsupported]
+//   - [version.ErrMismatch], [version.ErrExists] — [Conflict]
+//   - [epoch.ErrFenced] — [Conflict]
+//
+// The core sentinels are recognised here rather than wrapped at
+// their producers because the producers are plain sentinels by
+// design: they must classify correctly even when returned by an
+// adapter that has never imported this package. The set is closed
+// and grows only by RFC, exactly like [Class] itself.
 //
 // Everything else is [Unspecified], and context.Canceled and
 // context.DeadlineExceeded are deliberately left to that default
@@ -50,6 +61,10 @@ func Classify(err error) Class {
 		return NotFound
 	case errors.Is(err, errors.ErrUnsupported):
 		return Unsupported
+	case errors.Is(err, version.ErrMismatch), errors.Is(err, version.ErrExists):
+		return Conflict
+	case errors.Is(err, epoch.ErrFenced):
+		return Conflict
 	default:
 		return Unspecified
 	}

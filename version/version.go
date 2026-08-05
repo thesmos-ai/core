@@ -64,6 +64,18 @@ package version
 // requirement, the stalled worker could silently clobber the
 // resurrected state — a correctness-critical bug in distributed
 // systems where workers may outlive the keys they cached.
+//
+// # Equality-only
+//
+// A Version proves identity, never order. Two Versions are the
+// same observation or different observations; neither is "newer".
+// Any component that sorts, compares, or sheds writes by an
+// ordering over Versions is out of contract: the token is computed
+// by the backend from whatever it has — a row counter, a content
+// hash, an HLC — so an ordering over its bytes compares unrelated
+// representations and differs between backends. Ordering across
+// time is [go.thesmos.sh/core/epoch.Epoch]'s axis; a backend with
+// a meaningful order exposes it as one.
 type Version string
 
 // Unspecified is the reserved zero value, meaning "no version" /

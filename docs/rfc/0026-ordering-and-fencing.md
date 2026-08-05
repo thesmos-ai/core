@@ -2,13 +2,13 @@
 rfc: 0026
 title: Ordering and Fencing
 author: Roy Klopper <roy.klopper@stealthscale.io>
-status: Draft
+status: Accepted
 created: 2026-08-05
 updated: 2026-08-05
 discussion: none
 supersedes: none
 superseded-by: none
-produces-adr: tbd
+produces-adr: none
 ---
 
 # RFC-0026: Ordering and Fencing
@@ -242,25 +242,36 @@ handle's whole surface:
 ```go
 // In package coretest/epochtest.
 
+// FencedScope is one isolated scope of a consumer's fenced
+// writer. Open constructs a handle bound to fence epoch e;
+// Supersede advances the scope's authority out-of-band, as an
+// election would; Snapshot fingerprints the scope's observable
+// state so rejection-without-mutation is assertable.
+type FencedScope[H any] struct {
+    Open      func(e epoch.Epoch) (H, error)
+    Supersede func(e epoch.Epoch)
+    Snapshot  func() any
+}
+
+// FencedSystem describes the writer under test. NewScope returns
+// a fresh, independent scope per write case, so cases cannot
+// observe each other's watermarks. Writes names every write the
+// handle exposes — an omitted write is an untested hole.
+type FencedSystem[H any] struct {
+    NewScope func() FencedScope[H]
+    Writes   map[string]func(H) error
+}
+
 // AssertFencedWriter drives every named write through a fenced
-// handle's lifecycle and asserts the three fence laws hold for
-// each. open constructs a handle at a given fence epoch against
-// the same underlying scope; supersede advances the scope's
-// authority out-of-band, as an election would.
-//
-// Asserted, per write: (a) a write through a handle whose epoch
-// has been superseded returns an error matching ErrFenced AND
-// leaves the scope unmutated — rejection without mutation; (b) a
-// write at an epoch equal to the watermark is admitted; (c) a
+// handle's lifecycle on its own scope. Asserted, per write: (a) a
+// write through a superseded handle returns an error matching
+// ErrFenced, classifying as errs.Conflict, AND leaves the scope's
+// snapshot unchanged — rejection without mutation; (b) a write at
+// an epoch equal to the current authority is admitted; (c) a
 // handle opened at Zero neither validates nor advances; (d) after
 // supersession to epoch n, a fresh handle at n succeeds where the
-// old handle fails — the reseed law.
-func AssertFencedWriter[H any](
-    t *testing.T,
-    open func(e epoch.Epoch) (H, error),
-    supersede func(e epoch.Epoch),
-    writes map[string]func(H) error,
-)
+// superseded handle fails — the reseed law.
+func AssertFencedWriter[H any](t *testing.T, sys FencedSystem[H])
 ```
 
 Rejection-without-mutation is the assertion that earns the suite:
@@ -288,9 +299,10 @@ axes, and both outcomes are recomputable from the laws alone.
 - **`Admit(Zero)`** returns nil and never advances — an unfenced
   write cannot move authority.
 - **Concurrent admits** at epochs 5 and 7 may interleave arbitrarily;
-  the CAS loop guarantees the watermark converges to 7 and neither
-  admit is lost. A concurrent admit at 4 fails regardless of
-  interleaving.
+  the CAS loop guarantees the watermark converges to 7 and no update
+  is lost. The admit at 5 may succeed or return [ErrFenced] depending
+  on interleaving — racing authorities are exactly what the fence
+  arbitrates — and an admit at 4 fails regardless.
 - **Epoch exhaustion** inherits [Epoch.Successor]'s position: a
   producer advancing once per nanosecond exhausts `uint64` in ~584
   years; the wrap is not guarded, and consumers needing
