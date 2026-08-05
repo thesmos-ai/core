@@ -89,6 +89,7 @@ Start from [`docs/templates/RFC.md`](../templates/RFC.md).
 | [0024](0024-request-coalescing.md) | Request Coalescing | Draft |
 | [0025](0025-fixed-point-decimals.md) | Fixed-Point Decimals | Accepted |
 | [0026](0026-ordering-and-fencing.md) | Ordering and Fencing | Accepted |
+| [0027](0027-content-addressed-storage.md) | Content-Addressed Storage | Draft |
 
 ## Canonical first RFC
 

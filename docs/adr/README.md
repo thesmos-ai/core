@@ -64,5 +64,6 @@ Start from [`docs/templates/ADR.md`](../templates/ADR.md).
 | [0009](0009-logging-is-log-slog.md) | Logging Is log/slog | Accepted |
 | [0010](0010-one-package-name-one-concept.md) | One Package Name, One Concept | Accepted |
 | [0011](0011-test-doubles-named-for-behaviour.md) | Test Doubles Are Named for Their Behaviour | Accepted |
+| [0012](0012-storage-is-per-kind.md) | Storage Is Per-Kind; a Unified KV Seam Is Refused | Accepted |
 
 [nygard]: https://cognitect.com/blog/2011/11/15/documenting-architecture-decisions
