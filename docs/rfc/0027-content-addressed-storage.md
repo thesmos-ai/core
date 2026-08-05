@@ -2,7 +2,7 @@
 rfc: 0027
 title: Content-Addressed Storage
 author: Roy Klopper <roy.klopper@stealthscale.io>
-status: Draft
+status: Accepted
 created: 2026-08-05
 updated: 2026-08-05
 discussion: none
@@ -70,6 +70,14 @@ package cas
 
 // Store is content-addressed storage over one hashing algorithm.
 //
+// The address is a [crypto.Digest] because a CAS address is a
+// commitment, not a name. An assigned identifier — an id.ID, a
+// string key — is minted by someone and relates to its content by
+// convention only; a digest is computed FROM the content, which is
+// what makes Put's verification, idempotent writes, and verifiable
+// reads expressible at all. A consumer that wants to NAME stored
+// content keeps its own (name → digest) record beside this seam.
+//
 // A Store is bound to exactly one [crypto.Hasher] at construction.
 // One address space, one algorithm: a store that admitted two would
 // give identical bytes two addresses, and deduplication — half the
@@ -78,16 +86,17 @@ package cas
 // absent for Get and Has.
 //
 // The zero [crypto.Digest] is not an address: it is the documented
-// "no digest computed" sentinel (ADR-0007), and every method
+// "no digest computed" sentinel — see [crypto.Digest.IsZero] — and
+// every method
 // rejects it with an error classifying as
 // [go.thesmos.sh/core/errs.Invalid] before touching storage.
 //
 // # Fencing
 //
-// A Store implementation MAY be fenced per RFC-0026: the fence
-// epoch binds at handle construction and Put validates it
-// atomically. [coretest/epochtest.AssertFencedWriter] applies
-// unchanged.
+// A Store implementation MAY be fenced: the fence epoch binds at
+// handle construction and Put validates it atomically with the
+// write, per the fence laws documented on
+// [go.thesmos.sh/core/epoch.Admissible].
 //
 // # Concurrency
 //
