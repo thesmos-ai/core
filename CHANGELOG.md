@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `cas` package: the content-addressed storage seam. `Store` is
+  bound to one hashing algorithm; `Put` verifies that the data
+  hashes to its address and stores nothing on disagreement,
+  reports whether it wrote (exactly once under concurrency), and
+  there is no `Delete` — deletion is consumer-side garbage
+  collection, and erasure of meaning is crypto-shred. `cas/memory`
+  is the reference implementation; `coretest/castest` holds every
+  implementation to the same laws. See RFC-0027.
 - `epoch` fencing (RFC-0026): `Admissible` and the `Watermark`
   adapter kit apply the admit-equal fence laws over the existing
   `Epoch` type; `ErrFenced` reports revoked authority and

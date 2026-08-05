@@ -317,6 +317,9 @@ checks:
       - path: batch
         score: 99
         coverage: 99
+      - path: cas
+        score: 99
+        coverage: 99
       - path: clock
         score: 99
         coverage: 99
