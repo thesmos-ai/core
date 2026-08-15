@@ -34,6 +34,35 @@ func (h *stdlibHasher) Combine(left, right crypto.Digest) crypto.Digest {
 	return digestFromBytes(h.spec.Sum(concat))
 }
 
+func (h *stdlibHasher) HashTagged(r crypto.Role, data []byte) crypto.Digest {
+	if !r.IsUnary() {
+		panic(fmt.Sprintf( //nolint:forbidigo
+			"cryptotest: HashTagged requires a unary role (high bit clear), got %#02x", byte(r)))
+	}
+	tagged := make([]byte, 0, 1+len(data))
+	tagged = append(tagged, byte(r))
+	tagged = append(tagged, data...)
+
+	return digestFromBytes(h.spec.Sum(tagged))
+}
+
+func (h *stdlibHasher) CombineTagged(r crypto.Role, left, right crypto.Digest) crypto.Digest {
+	if !r.IsBinary() {
+		panic(fmt.Sprintf( //nolint:forbidigo
+			"cryptotest: CombineTagged requires a binary role (high bit set), got %#02x", byte(r)))
+	}
+	if left.IsZero() || right.IsZero() {
+		panic( //nolint:forbidigo
+			"cryptotest: CombineTagged refuses the zero Digest; the genesis sentinel is retired")
+	}
+	concat := make([]byte, 0, 1+left.Size()+right.Size())
+	concat = append(concat, byte(r))
+	concat = append(concat, left.Bytes()...)
+	concat = append(concat, right.Bytes()...)
+
+	return digestFromBytes(h.spec.Sum(concat))
+}
+
 func (h *stdlibHasher) NewStream() crypto.Stream {
 	return NewStdlibStreamStub(h.tb, h.spec.NewHash())
 }
@@ -57,6 +86,24 @@ func NewStdlibHasherStub(tb testing.TB, spec StdlibHasherSpec) *HasherStub {
 func SampleDigest(h crypto.Hasher) crypto.Digest {
 	return h.Hash(nil)
 }
+
+// SampleUnaryRole returns a [crypto.Role] from the unary half of the
+// space — one [crypto.Hasher.HashTagged] accepts and
+// [crypto.Hasher.CombineTagged] refuses. The SUT-aware sample builder
+// for testkit's `//testkit:sample` directive, which cannot synthesize
+// a uint8 that satisfies the arity precondition.
+func SampleUnaryRole(crypto.Hasher) crypto.Role { return 0x01 }
+
+// SampleBinaryRole returns a [crypto.Role] from the binary half of
+// the space — one [crypto.Hasher.CombineTagged] accepts and
+// [crypto.Hasher.HashTagged] refuses.
+func SampleBinaryRole(crypto.Hasher) crypto.Role { return 0x81 }
+
+// SampleBytes returns a non-empty payload for the generated stub and
+// benchmark surfaces. Content is irrelevant; only that it is stable
+// across calls, so a generated determinism assertion compares like
+// with like.
+func SampleBytes(crypto.Hasher) []byte { return []byte("sample payload") }
 
 // digestFromBytes wraps a byte slice from a stdlib hash output
 // in a [crypto.Digest] of the matching size. Bridges the stdlib

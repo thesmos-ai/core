@@ -102,6 +102,132 @@ func combinable(d crypto.Digest) bool {
 	return d.Size() == crypto.DigestSize256 || d.IsZero()
 }
 
+// sized reports whether d is exactly this hasher's output width.
+//
+// Unlike combinable it refuses the zero [crypto.Digest]. The tagged
+// operations have no genesis sentinel to admit: a chain's first link
+// is a unary role over one operand, so a zero operand reaching
+// CombineTagged is a programmer error like any other wrong width.
+func sized(d crypto.Digest) bool {
+	return d.Size() == crypto.DigestSize256
+}
+
+// roleBytes is the identity table of every one-byte [crypto.Role]
+// value, so HashTagged can hand the role to a [crypto.Stream] without
+// allocating.
+//
+// A local array sliced into Stream.Write would escape — the same
+// interface boundary that makes [crypto.HashDomain] draw its length
+// buffer from a pool. A slice of this table is static memory
+// instead: nothing escapes, no pool, no atomics, and the content of
+// a role byte never varies the way a length prefix does.
+//
+// Written once at initialisation and never mutated.
+var roleBytes = func() [256]byte {
+	var t [256]byte
+	for i := range t {
+		t[i] = byte(i)
+	}
+
+	return t
+}()
+
+// rolePrefix returns the one-byte prefix for r, backed by static
+// memory so it does not escape through [crypto.Stream.Write].
+//
+// The int conversion is load-bearing: r+1 evaluated in Role's own
+// type wraps to zero at 0xFF and would slice backwards.
+func rolePrefix(r crypto.Role) []byte {
+	i := int(r)
+
+	return roleBytes[i : i+1]
+}
+
+// HashTagged returns SHA-256(r || data) for a unary role r.
+//
+// The role byte is what keeps a caller-supplied leaf from colliding
+// with an interior node: without it a 64-byte payload hashes to
+// exactly what Combine produces from two digests.
+//
+// Panics when r is binary (high bit set) — admitting one here would
+// let a crafted payload share bytes with a CombineTagged result
+// under the same role, which is the forgery the arity split exists
+// to make unconstructible. Empty data is legal and yields
+// SHA-256 of the single role byte.
+//
+// # Allocation contract
+//
+// Zero alloc on the warm path: the [crypto.Stream] is borrowed from
+// the package pool and returned before HashTagged returns, and the
+// role byte is sliced from static memory. A cold-path caller (first
+// call after process start, or after GC pool eviction) pays the one
+// Stream allocation [Hasher.NewStream] documents.
+func (h Hasher) HashTagged(r crypto.Role, data []byte) crypto.Digest {
+	if !r.IsUnary() {
+		// Precondition violation; see crypto package "Failure
+		// semantics" — programmer errors panic to surface silent
+		// audit-chain corruption.
+		panic(fmt.Sprintf( //nolint:forbidigo
+			"crypto/sha256: HashTagged requires a unary role (high bit clear), got %#02x",
+			byte(r),
+		))
+	}
+
+	s := h.NewStream()
+	_, _ = s.Write(rolePrefix(r))
+	_, _ = s.Write(data)
+	d := s.Sum()
+	s.Close()
+
+	return d
+}
+
+// CombineTagged returns SHA-256(r || left || right) for a binary
+// role r.
+//
+// The 65-byte input costs no more than Combine's 64: SHA-256 appends
+// a 0x80 byte and an eight-byte length, so both pad to 128 and
+// compress twice. The role byte is free on this path.
+//
+// Panics when r is unary (high bit clear), when either operand is
+// the zero [crypto.Digest] — with its own diagnostic, because a
+// caller who reaches for the retired genesis sentinel needs to be
+// told that rather than sent hunting for a width bug — and when
+// either operand is any other wrong width.
+//
+// # Allocation contract
+//
+// Zero alloc on the success path — the 65-byte concat lives on the
+// stack and [crypto/sha256.Sum256] does not escape its argument
+// (concrete function, not the [hash.Hash] interface).
+func (Hasher) CombineTagged(r crypto.Role, left, right crypto.Digest) crypto.Digest {
+	if !r.IsBinary() {
+		panic(fmt.Sprintf( //nolint:forbidigo
+			"crypto/sha256: CombineTagged requires a binary role (high bit set), got %#02x",
+			byte(r),
+		))
+	}
+	if left.IsZero() || right.IsZero() {
+		panic( //nolint:forbidigo
+			"crypto/sha256: CombineTagged refuses the zero Digest; " +
+				"the genesis sentinel is retired — a chain's first link is " +
+				"a unary role over one operand")
+	}
+	if !sized(left) || !sized(right) {
+		panic(fmt.Sprintf( //nolint:forbidigo
+			"crypto/sha256: CombineTagged requires %d-byte digests, got left=%d right=%d",
+			crypto.DigestSize256, left.Size(), right.Size(),
+		))
+	}
+
+	var buf [1 + 2*crypto.DigestSize256]byte
+	buf[0] = byte(r)
+	copy(buf[1:], left.Bytes())
+	copy(buf[1+crypto.DigestSize256:], right.Bytes())
+
+	return crypto.NewDigest256(sha256.Sum256(buf[:]))
+}
+
 // NewStream returns a [crypto.Stream] backed by
 // [crypto/sha256.New]. Streams are drawn from a package-level
 // pool; [Stream.Close] returns the instance for reuse — see the

@@ -90,6 +90,55 @@ func (Hasher256) Combine(left, right crypto.Digest) crypto.Digest {
 	return crypto.NewDigest256(sha3.Sum256(buf[:]))
 }
 
+// HashTagged returns SHA3-256(r || data) for a unary role r.
+//
+// The role byte is what keeps a caller-supplied leaf from colliding
+// with an interior node: without it a payload of two digest widths
+// hashes to exactly what Combine produces from two digests.
+//
+// Panics when r is binary (high bit set). Empty data is legal and
+// yields SHA3-256 of the single role byte.
+//
+// # Allocation contract
+//
+// Zero alloc on the warm path: the [crypto.Stream] is borrowed from
+// the package pool and returned before HashTagged returns, and the
+// role byte is sliced from static memory.
+func (h Hasher256) HashTagged(r crypto.Role, data []byte) crypto.Digest {
+	requireUnary(r, "SHA3-256")
+
+	s := h.NewStream()
+	_, _ = s.Write(rolePrefix(r))
+	_, _ = s.Write(data)
+	d := s.Sum()
+	s.Close()
+
+	return d
+}
+
+// CombineTagged returns SHA3-256(r || left || right) for a binary
+// role r.
+//
+// The role byte is free here: SHA-3 absorbs at a 136-byte rate, so
+// the 64-byte and 65-byte inputs both take one permutation.
+//
+// Panics when r is unary (high bit clear), when either operand is
+// the zero [crypto.Digest], or when either is any other wrong width.
+//
+// # Allocation contract
+//
+// Zero alloc on the success path.
+func (Hasher256) CombineTagged(r crypto.Role, left, right crypto.Digest) crypto.Digest {
+	requireBinaryOperands(r, left, right, crypto.DigestSize256, "SHA3-256")
+
+	var buf [1 + 2*crypto.DigestSize256]byte
+	buf[0] = byte(r)
+	copy(buf[1:], left.Bytes())
+	copy(buf[1+crypto.DigestSize256:], right.Bytes())
+
+	return crypto.NewDigest256(sha3.Sum256(buf[:]))
+}
+
 // NewStream returns a streaming SHA3-256 [crypto.Stream] drawn
 // from a package-level pool; [Stream.Close] returns the
 // instance for reuse. Zero-allocation on the warm path.
@@ -153,6 +202,51 @@ func (Hasher384) Combine(left, right crypto.Digest) crypto.Digest {
 	return crypto.NewDigest384(sha3.Sum384(buf[:]))
 }
 
+// HashTagged returns SHA3-384(r || data) for a unary role r.
+//
+// The role byte is what keeps a caller-supplied leaf from colliding
+// with an interior node. Panics when r is binary (high bit set);
+// empty data is legal.
+//
+// # Allocation contract
+//
+// Zero alloc on the warm path.
+func (h Hasher384) HashTagged(r crypto.Role, data []byte) crypto.Digest {
+	requireUnary(r, "SHA3-384")
+
+	s := h.NewStream()
+	_, _ = s.Write(rolePrefix(r))
+	_, _ = s.Write(data)
+	d := s.Sum()
+	s.Close()
+
+	return d
+}
+
+// CombineTagged returns SHA3-384(r || left || right) for a binary
+// role r.
+//
+// The role byte is free here: SHA-3 absorbs at a 104-byte rate for
+// this width, so the 96-byte and 97-byte inputs both take one
+// permutation.
+//
+// Panics when r is unary (high bit clear), when either operand is
+// the zero [crypto.Digest], or when either is any other wrong width.
+//
+// # Allocation contract
+//
+// Zero alloc on the success path.
+func (Hasher384) CombineTagged(r crypto.Role, left, right crypto.Digest) crypto.Digest {
+	requireBinaryOperands(r, left, right, crypto.DigestSize384, "SHA3-384")
+
+	var buf [1 + 2*crypto.DigestSize384]byte
+	buf[0] = byte(r)
+	copy(buf[1:], left.Bytes())
+	copy(buf[1+crypto.DigestSize384:], right.Bytes())
+
+	return crypto.NewDigest384(sha3.Sum384(buf[:]))
+}
+
 // NewStream returns a streaming SHA3-384 [crypto.Stream] drawn
 // from a package-level pool; [Stream.Close] returns the
 // instance for reuse. Zero-allocation on the warm path.
@@ -213,6 +307,51 @@ func (Hasher512) Combine(left, right crypto.Digest) crypto.Digest {
 	var buf [2 * crypto.DigestSize512]byte
 	copy(buf[:crypto.DigestSize512], left.Bytes())
 	copy(buf[crypto.DigestSize512:], right.Bytes())
+	return crypto.NewDigest512(sha3.Sum512(buf[:]))
+}
+
+// HashTagged returns SHA3-512(r || data) for a unary role r.
+//
+// The role byte is what keeps a caller-supplied leaf from colliding
+// with an interior node. Panics when r is binary (high bit set);
+// empty data is legal.
+//
+// # Allocation contract
+//
+// Zero alloc on the warm path.
+func (h Hasher512) HashTagged(r crypto.Role, data []byte) crypto.Digest {
+	requireUnary(r, "SHA3-512")
+
+	s := h.NewStream()
+	_, _ = s.Write(rolePrefix(r))
+	_, _ = s.Write(data)
+	d := s.Sum()
+	s.Close()
+
+	return d
+}
+
+// CombineTagged returns SHA3-512(r || left || right) for a binary
+// role r.
+//
+// The role byte is free here: SHA-3 absorbs at a 72-byte rate for
+// this width, so the 128-byte and 129-byte inputs both take two
+// permutations.
+//
+// Panics when r is unary (high bit clear), when either operand is
+// the zero [crypto.Digest], or when either is any other wrong width.
+//
+// # Allocation contract
+//
+// Zero alloc on the success path.
+func (Hasher512) CombineTagged(r crypto.Role, left, right crypto.Digest) crypto.Digest {
+	requireBinaryOperands(r, left, right, crypto.DigestSize512, "SHA3-512")
+
+	var buf [1 + 2*crypto.DigestSize512]byte
+	buf[0] = byte(r)
+	copy(buf[1:], left.Bytes())
+	copy(buf[1+crypto.DigestSize512:], right.Bytes())
+
 	return crypto.NewDigest512(sha3.Sum512(buf[:]))
 }
 
@@ -343,4 +482,88 @@ func (s *stream512) Close() { stream512Pool.Put(s) }
 // [crypto.Digest], which ADR-0007 admits as the genesis sentinel.
 func combinable(d crypto.Digest, size int) bool {
 	return d.Size() == size || d.IsZero()
+}
+
+// sized reports whether d is exactly the given digest width.
+//
+// Unlike combinable it refuses the zero [crypto.Digest]. The tagged
+// operations have no genesis sentinel to admit: a chain's first link
+// is a unary role over one operand, so a zero operand reaching
+// CombineTagged is a programmer error like any other wrong width.
+func sized(d crypto.Digest, size int) bool {
+	return d.Size() == size
+}
+
+// roleBytes is the identity table of every one-byte [crypto.Role]
+// value, so HashTagged can hand the role to a [crypto.Stream] without
+// allocating.
+//
+// A local array sliced into Stream.Write would escape — the same
+// interface boundary that makes [crypto.HashDomain] draw its length
+// buffer from a pool. A slice of this table is static memory
+// instead: nothing escapes, no pool, no atomics, and the content of
+// a role byte never varies the way a length prefix does.
+//
+// Written once at initialisation and never mutated.
+var roleBytes = func() [256]byte {
+	var t [256]byte
+	for i := range t {
+		t[i] = byte(i)
+	}
+
+	return t
+}()
+
+// rolePrefix returns the one-byte prefix for r, backed by static
+// memory so it does not escape through [crypto.Stream.Write].
+//
+// The int conversion is load-bearing: r+1 evaluated in Role's own
+// type wraps to zero at 0xFF and would slice backwards.
+func rolePrefix(r crypto.Role) []byte {
+	i := int(r)
+
+	return roleBytes[i : i+1]
+}
+
+// requireUnary panics unless r is a unary role. alg names the
+// algorithm so a mixed-width package's diagnostic says which hasher
+// rejected the call.
+func requireUnary(r crypto.Role, alg string) {
+	if !r.IsUnary() {
+		// Precondition violation; see crypto package "Failure
+		// semantics" — programmer errors panic to surface silent
+		// audit-chain corruption.
+		panic(fmt.Sprintf( //nolint:forbidigo
+			"crypto/sha3: %s HashTagged requires a unary role (high bit clear), got %#02x",
+			alg, byte(r),
+		))
+	}
+}
+
+// requireBinaryOperands panics unless r is a binary role and both
+// operands are exactly size bytes.
+//
+// The zero [crypto.Digest] is rejected with its own diagnostic ahead
+// of the width check: a caller who reaches for the retired genesis
+// sentinel needs to be told that, not sent hunting for a width bug.
+func requireBinaryOperands(r crypto.Role, left, right crypto.Digest, size int, alg string) {
+	if !r.IsBinary() {
+		panic(fmt.Sprintf( //nolint:forbidigo
+			"crypto/sha3: %s CombineTagged requires a binary role (high bit set), got %#02x",
+			alg, byte(r),
+		))
+	}
+	if left.IsZero() || right.IsZero() {
+		panic(fmt.Sprintf( //nolint:forbidigo
+			"crypto/sha3: %s CombineTagged refuses the zero Digest; the genesis sentinel "+
+				"is retired — a chain's first link is a unary role over one operand",
+			alg,
+		))
+	}
+	if !sized(left, size) || !sized(right, size) {
+		panic(fmt.Sprintf( //nolint:forbidigo
+			"crypto/sha3: %s CombineTagged requires %d-byte digests, got left=%d right=%d",
+			alg, size, left.Size(), right.Size(),
+		))
+	}
 }

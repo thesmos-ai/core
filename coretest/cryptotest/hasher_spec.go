@@ -62,6 +62,117 @@ func HasherContractAssertions() []HasherOption {
 				"Combine(a,b) must not equal Combine(b,a) — order must matter")
 		}),
 
+		// --- Tagged (domain-separated) ---
+		//
+		// The roles below are example bytes. Core ships none, and a
+		// hasher passing these makes no claim about which roles any
+		// protocol assigns — what is asserted is the byte layout and
+		// the arity split, both of which every implementation owes.
+
+		HasherCustom("HashTagged is the role byte followed by the data", func(t *testing.T, h crypto.Hasher) {
+			data := []byte(`{"act":"infer","id":1}`)
+			framed := append([]byte{0x01}, data...)
+			testkit.True(t, h.HashTagged(0x01, data).Equal(h.Hash(framed)),
+				"HashTagged(r, data) must equal Hash(r || data) — one role byte, no framing")
+		}),
+
+		HasherCustom("CombineTagged is the role byte followed by both operands", func(t *testing.T, h crypto.Hasher) {
+			left := h.Hash([]byte("left"))
+			right := h.Hash([]byte("right"))
+			framed := append([]byte{0x84}, left.Bytes()...)
+			framed = append(framed, right.Bytes()...)
+			testkit.True(t, h.CombineTagged(0x84, left, right).Equal(h.Hash(framed)),
+				"CombineTagged(r, l, x) must equal Hash(r || l || x) — no length prefixes")
+		}),
+
+		HasherCustom("HashTagged accepts empty data", func(t *testing.T, h crypto.Hasher) {
+			testkit.True(t, h.HashTagged(0x01, nil).Equal(h.Hash([]byte{0x01})),
+				"HashTagged(r, nil) must equal Hash of the role byte alone")
+		}),
+
+		HasherCustom("tagged operations are deterministic", func(t *testing.T, h crypto.Hasher) {
+			left := h.Hash([]byte("left"))
+			right := h.Hash([]byte("right"))
+			testkit.True(t, h.HashTagged(0x01, []byte("x")).Equal(h.HashTagged(0x01, []byte("x"))),
+				"HashTagged must be deterministic")
+			testkit.True(t, h.CombineTagged(0x84, left, right).Equal(h.CombineTagged(0x84, left, right)),
+				"CombineTagged must be deterministic")
+			testkit.False(t, h.CombineTagged(0x84, left, right).Equal(h.CombineTagged(0x84, right, left)),
+				"CombineTagged must be asymmetric — operand order must matter")
+		}),
+
+		HasherCustom("a crafted leaf cannot collide with an interior node", func(t *testing.T, h crypto.Hasher) {
+			// The second preimage the role byte exists to close: a
+			// caller-chosen payload equal to two concatenated sibling
+			// digests, offered as a leaf.
+			left := h.Hash([]byte("left"))
+			right := h.Hash([]byte("right"))
+			payload := append(append([]byte{}, left.Bytes()...), right.Bytes()...)
+			testkit.False(t, h.HashTagged(0x01, payload).Equal(h.CombineTagged(0x84, left, right)),
+				"a payload of two concatenated digests must not hash to their interior node")
+		}),
+
+		HasherCustom("distinct binary roles over one pair give distinct digests", func(t *testing.T, h crypto.Hasher) {
+			// A chain link, a batch node and an accumulator node are all
+			// interior and must not collide with each other — the
+			// multiplicity a fixed two-value scheme cannot express.
+			left := h.Hash([]byte("left"))
+			right := h.Hash([]byte("right"))
+			link := h.CombineTagged(0x83, left, right)
+			node := h.CombineTagged(0x84, left, right)
+			mmr := h.CombineTagged(0x85, left, right)
+			testkit.False(t, link.Equal(node), "roles 0x83 and 0x84 must not collide")
+			testkit.False(t, node.Equal(mmr), "roles 0x84 and 0x85 must not collide")
+			testkit.False(t, link.Equal(mmr), "roles 0x83 and 0x85 must not collide")
+		}),
+
+		HasherCustom("the arity halves refuse each other at 0x80", func(t *testing.T, h crypto.Hasher) {
+			// The refusal IS the mechanism: without it one role could
+			// serve both a leaf and a node, and the collision above
+			// becomes constructible again. Only a refusal test proves a
+			// guard exists.
+			d := h.Hash(nil)
+
+			// The boundary itself — these must not panic, and a panic
+			// fails the assertion directly.
+			_ = h.HashTagged(0x7F, nil)
+			_ = h.CombineTagged(0x80, d, d)
+
+			testkit.Panics(t, func() { _ = h.HashTagged(0x80, nil) },
+				"HashTagged must refuse the lowest binary role")
+			testkit.Panics(t, func() { _ = h.HashTagged(0xFF, []byte("x")) },
+				"HashTagged must refuse the highest binary role")
+			testkit.Panics(t, func() { _ = h.CombineTagged(0x7F, d, d) },
+				"CombineTagged must refuse the highest unary role")
+			testkit.Panics(t, func() { _ = h.CombineTagged(0x00, d, d) },
+				"CombineTagged must refuse the lowest unary role")
+		}),
+
+		HasherCustom("CombineTagged refuses the zero Digest", func(t *testing.T, h crypto.Hasher) {
+			// There is no genesis sentinel in the tagged vocabulary: a
+			// chain's first link is a unary role over one operand.
+			var zero crypto.Digest
+			d := h.Hash(nil)
+
+			testkit.True(t, zero.IsZero(), "the zero Digest must report IsZero")
+			testkit.Panics(t, func() { _ = h.CombineTagged(0x84, zero, d) },
+				"CombineTagged(r, zero, x) must panic")
+			testkit.Panics(t, func() { _ = h.CombineTagged(0x84, d, zero) },
+				"CombineTagged(r, x, zero) must panic")
+		}),
+
+		HasherCustom("CombineTagged refuses a wrong-width operand", func(t *testing.T, h crypto.Hasher) {
+			d := h.Hash(nil)
+			wrong := otherWidthDigest(d.Size())
+
+			testkit.False(t, wrong.IsZero(),
+				"the wrong-width probe must not be the zero Digest — that is a distinct refusal")
+			testkit.Panics(t, func() { _ = h.CombineTagged(0x84, wrong, d) },
+				"CombineTagged(r, wrong-left, correct) must panic")
+			testkit.Panics(t, func() { _ = h.CombineTagged(0x84, d, wrong) },
+				"CombineTagged(r, correct, wrong-right) must panic")
+		}),
+
 		// --- Stream ---
 
 		HasherCustom("Stream Write+Sum equals Hash over same bytes", func(t *testing.T, h crypto.Hasher) {
@@ -105,6 +216,30 @@ func HasherContractAssertions() []HasherOption {
 				`Sum must snapshot only — must not reset state`)
 		}),
 	}
+}
+
+// otherWidthDigest returns a non-zero [crypto.Digest] whose width is
+// not size, so a width precondition can be probed without a
+// consumer-supplied fixture. The bytes are 0xAB rather than zero
+// because an all-zero digest of the wrong width would still be
+// refused, but for the reason the zero-Digest assertion already
+// covers.
+func otherWidthDigest(size int) crypto.Digest {
+	if size == crypto.DigestSize256 {
+		var b [crypto.DigestSize512]byte
+		for i := range b {
+			b[i] = 0xAB
+		}
+
+		return crypto.NewDigest512(b)
+	}
+
+	var b [crypto.DigestSize256]byte
+	for i := range b {
+		b[i] = 0xAB
+	}
+
+	return crypto.NewDigest256(b)
 }
 
 // HasherIDAssertion verifies [crypto.Hasher.ID] returns the

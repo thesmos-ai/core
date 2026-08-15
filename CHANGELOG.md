@@ -9,6 +9,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `crypto.Role` and the tagged hashing pair `Hasher.HashTagged` /
+  `Hasher.CombineTagged`: a one-byte domain separator before every
+  leaf and every interior hash, so a caller-chosen payload of two
+  digest widths can no longer hash to a legitimate interior node.
+  The role's high bit is reserved for arity — unary roles are
+  `0x00`–`0x7F` and binary roles `0x80`–`0xFF`, each refused by the
+  other's method — which makes a leaf role and a node role unable to
+  share a first byte. Core ships no roles, as it ships no domains.
+  See RFC-0029 and ADR-0013.
+- `blob` package: the named-object storage seam — caller-keyed,
+  streamed both directions, conditional writes via the `version`
+  vocabulary, and three laws practice left undefined: atomic
+  visibility on `Put`, one consistent object per open reader, and
+  cursor-chain completeness over a quiescent store. `blob/memory`
+  is the reference implementation; `coretest/blobtest` holds every
+  implementation to the laws. See RFC-0028.
 - `cas` package: the content-addressed storage seam. `Store` is
   bound to one hashing algorithm; `Put` verifies that the data
   hashes to its address and stores nothing on disagreement,

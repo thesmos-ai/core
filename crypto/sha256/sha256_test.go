@@ -137,6 +137,114 @@ func TestSHA256FIPSVectors(t *testing.T) {
 	}
 }
 
+// TestTaggedGoldenVectors locks the tagged byte layout against
+// accidental change. The generic conformance suite proves the shape
+// — one role byte, then operands, no framing — for every
+// implementation; these pin the resulting SHA-256 digests, so a
+// verifier written against them in another language stays in
+// agreement with this one.
+//
+// The role values are examples. Core ships none, and nothing here
+// binds any protocol to a registry.
+func TestTaggedGoldenVectors(t *testing.T) {
+	t.Parallel()
+
+	const (
+		entryLeaf    crypto.Role = 0x01
+		chainGenesis crypto.Role = 0x02
+		chainLink    crypto.Role = 0x83
+		batchNode    crypto.Role = 0x84
+		mmrNode      crypto.Role = 0x85
+	)
+
+	payload0 := []byte(`{"act":"infer","id":1}`)
+	payload1 := []byte(`{"act":"infer","id":2}`)
+	payload2 := []byte(`{"act":"score","id":3}`)
+
+	t.Run("leaves, a chain and a batch tree match their recorded digests", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHasher()
+		leaf0 := h.HashTagged(entryLeaf, payload0)
+		leaf1 := h.HashTagged(entryLeaf, payload1)
+		leaf2 := h.HashTagged(entryLeaf, payload2)
+
+		e1 := h.HashTagged(chainGenesis, leaf0.Bytes())
+		e2 := h.CombineTagged(chainLink, e1, leaf1)
+		e3 := h.CombineTagged(chainLink, e2, leaf2)
+
+		n01 := h.CombineTagged(batchNode, leaf0, leaf1)
+		root := h.CombineTagged(batchNode, n01, leaf2)
+
+		cases := map[string]struct {
+			got     crypto.Digest
+			wantHex string
+		}{
+			"leaf0":     {leaf0, "9978971ab897cd3656fdde798a8984a606b37e51f2153f5ebeae2b6a06550cfd"},
+			"leaf1":     {leaf1, "67a0f291cd3e01dbddfaacf8ba3e0af33627dd94cc4d7ad3d9deefe302faafcd"},
+			"leaf2":     {leaf2, "921fd00458c68f7c46437576db9f96878f388c9eea233858cafa0a18733c77f8"},
+			"E1":        {e1, "34b6c48bb25089e98c8ac2b7a67ea4c35dbf1cf2dff29526af55c46cd3d7dfb5"},
+			"E2":        {e2, "ba248ec5db725a8eff0a0068c4225132425bd983e154b158f7ce5bcb0bc60df6"},
+			"E3":        {e3, "cde1a7dcd5630788b710cd741398fa14bff17083a79ed9e895880b949d2ce296"},
+			"n01":       {n01, "cf9b6328ccb2bd4156e7f22b4417d426fa7a0bce96e74690ecbb9ff95b723715"},
+			"BatchRoot": {root, "fc2f792f6acc7aa9f5ebbc7de9ffa490ff08ef33cbffefb108da46b501d71fba"},
+		}
+		for name, tc := range cases {
+			testkit.Equal(t, tc.got.Bytes(), testkit.MustDecodeHex(t, tc.wantHex),
+				name+" must match its recorded digest")
+		}
+	})
+
+	t.Run("an empty leaf is the role byte alone", func(t *testing.T) {
+		t.Parallel()
+
+		got := newHasher().HashTagged(entryLeaf, nil)
+		testkit.Equal(t, got.Bytes(),
+			testkit.MustDecodeHex(t, "4bf5122f344554c53bde2ebb8cd2b7e3d1600ad631c385a5d7cce23c7785459a"),
+			"HashTagged over empty data must be SHA-256 of the single role byte")
+	})
+
+	t.Run("a crafted leaf and the interior node it targets differ", func(t *testing.T) {
+		t.Parallel()
+
+		// The forgery, priced: the attacker's payload is exactly the
+		// two sibling digests, and the two digests must not meet.
+		h := newHasher()
+		leaf0 := h.HashTagged(entryLeaf, payload0)
+		leaf1 := h.HashTagged(entryLeaf, payload1)
+		crafted := append(append([]byte{}, leaf0.Bytes()...), leaf1.Bytes()...)
+
+		testkit.Equal(t, h.HashTagged(entryLeaf, crafted).Bytes(),
+			testkit.MustDecodeHex(t, "97055cac3af04d642568f4619517572949240caec5256838a62cf9c166b19c8e"),
+			"the crafted leaf must match its recorded digest")
+		testkit.Equal(t, h.CombineTagged(batchNode, leaf0, leaf1).Bytes(),
+			testkit.MustDecodeHex(t, "cf9b6328ccb2bd4156e7f22b4417d426fa7a0bce96e74690ecbb9ff95b723715"),
+			"the interior node must match its recorded digest")
+	})
+
+	t.Run("one operand pair under three binary roles gives three digests", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHasher()
+		leaf0 := h.HashTagged(entryLeaf, payload0)
+		leaf1 := h.HashTagged(entryLeaf, payload1)
+
+		cases := map[string]struct {
+			role    crypto.Role
+			wantHex string
+		}{
+			"chain-link": {chainLink, "2127809bd7be825e"},
+			"batch-node": {batchNode, "cf9b6328ccb2bd41"},
+			"mmr-node":   {mmrNode, "6eebccae2a270500"},
+		}
+		for name, tc := range cases {
+			got := h.CombineTagged(tc.role, leaf0, leaf1)
+			testkit.Equal(t, got.Bytes()[:8], testkit.MustDecodeHex(t, tc.wantHex),
+				name+" must match its recorded digest prefix")
+		}
+	})
+}
+
 // TestZeroValueHasher locks the documented "zero value is
 // usable" property of [cryptosha256.Hasher] — it's a struct{}
 // type, so the zero value behaves identically to the

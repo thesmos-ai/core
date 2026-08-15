@@ -57,9 +57,29 @@ func (id ID) String() string {
 //     diagnostic message rather than silently producing a
 //     truncated digest. See the package "Failure semantics"
 //     section.
+//   - [Hasher.HashTagged] returns the [Digest] of the input bytes
+//     under a unary [Role]. Hot path for the leaves of a tree or
+//     chain, where the payload is caller-supplied and could
+//     otherwise be chosen to collide with an interior node.
+//   - [Hasher.CombineTagged] returns the [Digest] of left || right
+//     under a binary [Role]. Hot path for chain extension and
+//     Merkle accumulator construction. Both operands must have
+//     [Digest.Size] equal to this Hasher's output size and the zero
+//     [Digest] is not admitted; a [Role] from the wrong arity half
+//     panics, as does an operand of the wrong width.
 //   - [Hasher.NewStream] returns a fresh [Stream] for streaming
 //     inputs that don't fit in memory or that compose multiple
 //     fields without per-field concatenation.
+//
+// # Domain separation
+//
+// [Hasher.Hash] and [Hasher.Combine] are the same function over
+// different arities, so a caller-chosen payload of exactly two
+// digest widths hashes to a legitimate interior node. Anything
+// building a tree or a chain over caller-supplied leaves uses the
+// tagged pair instead, where a [Role] byte separates the two
+// constructions and the role's high bit keeps a leaf role and a
+// node role from ever sharing one. See [Role].
 //
 // # Concurrency
 //
@@ -70,10 +90,13 @@ func (id ID) String() string {
 //
 // # Allocation contract
 //
-// [Hasher.ID], [Hasher.Algorithm], [Hasher.Hash], and
-// [Hasher.Combine] are zero-allocation on every implementation
-// in this module. [Hasher.NewStream] allocates the underlying
-// hash state once.
+// [Hasher.ID], [Hasher.Algorithm], [Hasher.Hash],
+// [Hasher.Combine], [Hasher.HashTagged], and
+// [Hasher.CombineTagged] are zero-allocation on every
+// implementation in this module — [Hasher.HashTagged] on the warm
+// path, since it borrows a [Stream] from the same pool
+// [HashDomain] draws from. [Hasher.NewStream] allocates the
+// underlying hash state once.
 type Hasher interface {
 	// ID returns the implementation's stable build-local
 	// identifier.
@@ -99,6 +122,39 @@ type Hasher interface {
 	//nolint:dupword // testkit directive: one builder per parameter, positional
 	//testkit:sample SampleDigest SampleDigest
 	Combine(left, right Digest) Digest
+
+	// HashTagged returns the [Digest] of data under r, a unary
+	// [Role]. Hot path for the leaves of a tree or chain, where
+	// data is caller-supplied and could otherwise be chosen to
+	// collide with an interior node.
+	//
+	// Content addressing uses [Hasher.Hash] instead: a content
+	// address is the digest OF the bytes, so prefixing it would
+	// make the address name something the bytes are not.
+	//
+	// r with the high bit set panics — 0x80–0xFF are binary roles,
+	// and admitting one here is exactly what would let a crafted
+	// payload share bytes with an interior node. Empty data is
+	// legal: the digest of the role byte alone, which collides
+	// with nothing shorter.
+	//
+	//testkit:sample SampleUnaryRole SampleBytes
+	HashTagged(r Role, data []byte) Digest
+
+	// CombineTagged returns the [Digest] of left || right under r,
+	// a binary [Role]. Hot path for chain extension and Merkle
+	// accumulator construction.
+	//
+	// r with the high bit clear panics. Both operands must have
+	// [Digest.Size] equal to this Hasher's output size; a mismatch
+	// panics, and the zero [Digest] is a mismatch here with its
+	// own diagnostic. There is no sentinel to admit — a chain's
+	// first link is its own unary role over one operand, not a
+	// combine with an absent one.
+	//
+	//nolint:dupword // testkit directive: one builder per parameter, positional
+	//testkit:sample SampleBinaryRole SampleDigest SampleDigest
+	CombineTagged(r Role, left, right Digest) Digest
 
 	// NewStream returns a fresh [Stream] for streaming inputs
 	// that don't fit in memory or that compose multiple fields
