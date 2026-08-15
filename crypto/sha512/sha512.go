@@ -57,37 +57,6 @@ func (Hasher384) Hash(data []byte) crypto.Digest {
 	return crypto.NewDigest384(sha512.Sum384(data))
 }
 
-// Combine returns SHA-384(left || right). The 96-byte input fits
-// in one SHA-512 block (1024 bits).
-//
-// The zero [crypto.Digest] is accepted as either operand and
-// contributes DigestSize384 zero bytes. It is the documented
-// sentinel for "no digest computed" — the predecessor anchor of
-// a hash chain's genesis entry — so rejecting it would make that
-// documentation a trap. Combine panics on every other size
-// mismatch: a programmer error that would otherwise produce a
-// silently-wrong digest. See ADR-0007 and the package doc
-// "Failure semantics" section.
-//
-// # Allocation contract
-//
-// Zero alloc on the success path.
-func (Hasher384) Combine(left, right crypto.Digest) crypto.Digest {
-	if !combinable(left, crypto.DigestSize384) || !combinable(right, crypto.DigestSize384) {
-		// Precondition violation; see crypto package "Failure
-		// semantics" — programmer errors panic to surface
-		// silent audit-chain corruption.
-		panic(fmt.Sprintf( //nolint:forbidigo
-			"crypto/sha512: SHA-384 Combine requires %d-byte digests, got left=%d right=%d",
-			crypto.DigestSize384, left.Size(), right.Size(),
-		))
-	}
-	var buf [2 * crypto.DigestSize384]byte
-	copy(buf[:crypto.DigestSize384], left.Bytes())
-	copy(buf[crypto.DigestSize384:], right.Bytes())
-	return crypto.NewDigest384(sha512.Sum384(buf[:]))
-}
-
 // HashTagged returns SHA-384(r || data) for a unary role r.
 //
 // The role byte is what keeps a caller-supplied leaf from colliding
@@ -170,37 +139,6 @@ func (Hasher512) Algorithm() crypto.Algorithm { return crypto.AlgSHA512 }
 // Zero alloc.
 func (Hasher512) Hash(data []byte) crypto.Digest {
 	return crypto.NewDigest512(sha512.Sum512(data))
-}
-
-// Combine returns SHA-512(left || right). The 128-byte input is
-// exactly one SHA-512 block.
-//
-// The zero [crypto.Digest] is accepted as either operand and
-// contributes DigestSize512 zero bytes. It is the documented
-// sentinel for "no digest computed" — the predecessor anchor of
-// a hash chain's genesis entry — so rejecting it would make that
-// documentation a trap. Combine panics on every other size
-// mismatch: a programmer error that would otherwise produce a
-// silently-wrong digest. See ADR-0007 and the package doc
-// "Failure semantics" section.
-//
-// # Allocation contract
-//
-// Zero alloc on the success path.
-func (Hasher512) Combine(left, right crypto.Digest) crypto.Digest {
-	if !combinable(left, crypto.DigestSize512) || !combinable(right, crypto.DigestSize512) {
-		// Precondition violation; see crypto package "Failure
-		// semantics" — programmer errors panic to surface
-		// silent audit-chain corruption.
-		panic(fmt.Sprintf( //nolint:forbidigo
-			"crypto/sha512: SHA-512 Combine requires %d-byte digests, got left=%d right=%d",
-			crypto.DigestSize512, left.Size(), right.Size(),
-		))
-	}
-	var buf [2 * crypto.DigestSize512]byte
-	copy(buf[:crypto.DigestSize512], left.Bytes())
-	copy(buf[crypto.DigestSize512:], right.Bytes())
-	return crypto.NewDigest512(sha512.Sum512(buf[:]))
 }
 
 // HashTagged returns SHA-512(r || data) for a unary role r.
@@ -328,13 +266,6 @@ func (s *stream512) Reset() { s.h.Reset() }
 // Close returns the stream to the package-level pool. The
 // stream MUST NOT be used after Close.
 func (s *stream512) Close() { stream512Pool.Put(s) }
-
-// combinable reports whether d may be an operand of Combine at the
-// given digest width: either a correctly-sized digest, or the zero
-// [crypto.Digest], which ADR-0007 admits as the genesis sentinel.
-func combinable(d crypto.Digest, size int) bool {
-	return d.Size() == size || d.IsZero()
-}
 
 // sized reports whether d is exactly the given digest width.
 //

@@ -33,8 +33,9 @@ var id = crypto.ID{'s', 'h', 'a', '2', '5', '6', '/', 'v', '1'}
 // # Allocation contract
 //
 // [Hasher.ID], [Hasher.Algorithm], [Hasher.Hash], and
-// [Hasher.Combine] are zero-alloc. [Hasher.NewStream] allocates
-// the underlying [hash.Hash] once.
+// [Hasher.CombineTagged] are zero-alloc; [Hasher.HashTagged] is
+// zero-alloc on the warm path. [Hasher.NewStream] allocates the
+// underlying [hash.Hash] once.
 type Hasher struct{}
 
 // Compile-time interface check.
@@ -59,55 +60,12 @@ func (Hasher) Hash(data []byte) crypto.Digest {
 	return crypto.NewDigest256(sha256.Sum256(data))
 }
 
-// Combine returns SHA-256(left || right). The 64-byte
-// concatenation is exactly one SHA-256 block, so the hash
-// function processes the input in a single compress invocation
-// with no padding.
-//
-// The zero [crypto.Digest] is accepted as either operand and
-// contributes 32 zero bytes. It is the documented sentinel for "no
-// digest computed" — the predecessor anchor of a hash chain's
-// genesis entry — so rejecting it would make that documentation a
-// trap. Combine panics on every other size mismatch: a programmer
-// error that would otherwise produce a silently-wrong digest. See
-// ADR-0007 and the package doc "Failure semantics" section.
-//
-// # Allocation contract
-//
-// Zero alloc on the success path — the 64-byte concat lives on
-// the stack and [crypto/sha256.Sum256] does not escape its
-// argument (concrete function, not the [hash.Hash] interface).
-func (Hasher) Combine(left, right crypto.Digest) crypto.Digest {
-	if !combinable(left) || !combinable(right) {
-		// Precondition violation; see crypto package "Failure
-		// semantics" — programmer errors panic to surface
-		// silent audit-chain corruption.
-		panic(fmt.Sprintf( //nolint:forbidigo
-			"crypto/sha256: Combine requires %d-byte digests, got left=%d right=%d",
-			crypto.DigestSize256, left.Size(), right.Size(),
-		))
-	}
-	// buf starts zeroed, so a zero-Digest operand copies nothing and
-	// leaves its half zero-padded to the hasher's width.
-	var buf [64]byte
-	copy(buf[:32], left.Bytes())
-	copy(buf[32:], right.Bytes())
-	return crypto.NewDigest256(sha256.Sum256(buf[:]))
-}
-
-// combinable reports whether d may be an operand of Combine: either a
-// correctly-sized digest, or the zero [crypto.Digest], which ADR-0007
-// admits as the genesis sentinel.
-func combinable(d crypto.Digest) bool {
-	return d.Size() == crypto.DigestSize256 || d.IsZero()
-}
-
 // sized reports whether d is exactly this hasher's output width.
 //
-// Unlike combinable it refuses the zero [crypto.Digest]. The tagged
-// operations have no genesis sentinel to admit: a chain's first link
-// is a unary role over one operand, so a zero operand reaching
-// CombineTagged is a programmer error like any other wrong width.
+// The zero [crypto.Digest] is not exempt. The tagged operations have
+// no genesis sentinel to admit: a chain's first link is a unary role
+// over one operand, so a zero operand reaching CombineTagged is a
+// programmer error like any other wrong width.
 func sized(d crypto.Digest) bool {
 	return d.Size() == crypto.DigestSize256
 }

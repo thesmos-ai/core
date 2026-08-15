@@ -53,8 +53,9 @@
 // # Allocation contract
 //
 // [Hasher.ID], [Hasher.Algorithm], [Hasher.Hash], and
-// [Hasher.Combine] are zero-allocation on every implementation
-// in this module. [Hasher.NewStream] allocates the underlying
+// [Hasher.CombineTagged] are zero-allocation on every
+// implementation in this module, and [Hasher.HashTagged] is on the
+// warm path. [Hasher.NewStream] allocates the underlying
 // hash state once; [Stream.Write], [Stream.Sum], and
 // [Stream.Reset] are zero-allocation thereafter. [Digest], [ID],
 // and [Algorithm] are value types passed by value.
@@ -70,20 +71,20 @@
 //     (signing, AEAD, KEM) follow the same shape.
 //   - Precondition violations — programmer errors that have no
 //     legitimate runtime cause — panic. The canonical example is
-//     [Hasher.Combine] called with a [Digest] whose [Digest.Size]
-//     does not match the hasher's output size. Returning a
+//     [Hasher.CombineTagged] called with a [Digest] whose
+//     [Digest.Size] does not match the hasher's output size, or
+//     with a [Role] from the wrong arity half. Returning a
 //     silently-wrong digest is the worst possible failure mode
 //     for an audit-chain primitive; panic converts it to an
 //     immediate, unmissable test failure that the offending
 //     change cannot ship.
 //
-// The zero [Digest] is the one documented exception. It is a
-// sentinel with a stated meaning — see [Digest.IsZero] — rather
-// than a programmer error, so [Hasher.Combine] admits it as either
-// operand, zero-padded to the hasher's width. The distinction is
-// programmer error versus documented sentinel: panicking on a value
-// the type documents would make that documentation a trap. See
-// ADR-0007.
+// There is no admitted exception. The zero [Digest] was once one —
+// a sentinel for a hash chain's genesis anchor — and it panics now:
+// its meaning could not be read off its type, so the documentation
+// it was meant to honour was itself the trap. A chain's first link
+// is a unary [Role] over one operand, which deletes the case rather
+// than annotating it. See [Digest.IsZero].
 //
 // This split matches the Go standard library: I/O packages
 // return errors; [encoding/binary], [crypto/cipher],

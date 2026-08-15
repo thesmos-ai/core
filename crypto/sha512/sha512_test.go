@@ -48,13 +48,6 @@ func TestSHA384HasherContract(t *testing.T) {
 			cryptotest.HasherIDAssertion(sha384ID),
 			cryptotest.HasherAlgorithmAssertion(crypto.AlgSHA384),
 			cryptotest.HasherCrossStdlibAssertion(sha384Spec.Sum),
-			cryptotest.HasherCombinePanicsOnSizeMismatch(
-				crypto.DigestSize384,
-				crypto.NewDigest256([crypto.DigestSize256]byte{}),
-			),
-			cryptotest.HasherCombineAdmitsZeroDigest(
-				crypto.NewDigest384([crypto.DigestSize384]byte{}),
-			),
 		)...,
 	)
 }
@@ -67,7 +60,8 @@ func TestSHA384HasherModel(t *testing.T) {
 		}),
 		cryptotest.HasherModelExtraActions(
 			cryptotest.HasherHashAction(),
-			cryptotest.HasherCombineAction(),
+			cryptotest.HasherHashTaggedAction(),
+			cryptotest.HasherCombineTaggedAction(),
 		),
 	)
 }
@@ -79,7 +73,8 @@ func FuzzSHA384HasherModel(f *testing.F) {
 		}),
 		cryptotest.HasherModelExtraActions(
 			cryptotest.HasherHashAction(),
-			cryptotest.HasherCombineAction(),
+			cryptotest.HasherHashTaggedAction(),
+			cryptotest.HasherCombineTaggedAction(),
 		),
 	)
 }
@@ -89,7 +84,8 @@ func BenchmarkSHA384Hasher(b *testing.B) {
 		cryptotest.HasherBenchOnAlgorithm(bench.PureAllocsWithin[crypto.Hasher, crypto.Algorithm](0)),
 		cryptotest.HasherBenchOnID(bench.PureAllocsWithin[crypto.Hasher, crypto.ID](0)),
 		cryptotest.HasherBenchOnHash(bench.PureAllocsWithin[crypto.Hasher, crypto.Digest](0)),
-		cryptotest.HasherBenchOnCombine(bench.PureAllocsWithin[crypto.Hasher, crypto.Digest](0)),
+		cryptotest.HasherBenchOnHashTagged(bench.PureAllocsWithin[crypto.Hasher, crypto.Digest](0)),
+		cryptotest.HasherBenchOnCombineTagged(bench.PureAllocsWithin[crypto.Hasher, crypto.Digest](0)),
 	)
 }
 
@@ -102,13 +98,6 @@ func TestSHA512HasherContract(t *testing.T) {
 			cryptotest.HasherIDAssertion(sha512ID),
 			cryptotest.HasherAlgorithmAssertion(crypto.AlgSHA512),
 			cryptotest.HasherCrossStdlibAssertion(sha512Spec.Sum),
-			cryptotest.HasherCombinePanicsOnSizeMismatch(
-				crypto.DigestSize512,
-				crypto.NewDigest256([crypto.DigestSize256]byte{}),
-			),
-			cryptotest.HasherCombineAdmitsZeroDigest(
-				crypto.NewDigest512([crypto.DigestSize512]byte{}),
-			),
 		)...,
 	)
 }
@@ -121,7 +110,8 @@ func TestSHA512HasherModel(t *testing.T) {
 		}),
 		cryptotest.HasherModelExtraActions(
 			cryptotest.HasherHashAction(),
-			cryptotest.HasherCombineAction(),
+			cryptotest.HasherHashTaggedAction(),
+			cryptotest.HasherCombineTaggedAction(),
 		),
 	)
 }
@@ -133,7 +123,8 @@ func FuzzSHA512HasherModel(f *testing.F) {
 		}),
 		cryptotest.HasherModelExtraActions(
 			cryptotest.HasherHashAction(),
-			cryptotest.HasherCombineAction(),
+			cryptotest.HasherHashTaggedAction(),
+			cryptotest.HasherCombineTaggedAction(),
 		),
 	)
 }
@@ -143,7 +134,8 @@ func BenchmarkSHA512Hasher(b *testing.B) {
 		cryptotest.HasherBenchOnAlgorithm(bench.PureAllocsWithin[crypto.Hasher, crypto.Algorithm](0)),
 		cryptotest.HasherBenchOnID(bench.PureAllocsWithin[crypto.Hasher, crypto.ID](0)),
 		cryptotest.HasherBenchOnHash(bench.PureAllocsWithin[crypto.Hasher, crypto.Digest](0)),
-		cryptotest.HasherBenchOnCombine(bench.PureAllocsWithin[crypto.Hasher, crypto.Digest](0)),
+		cryptotest.HasherBenchOnHashTagged(bench.PureAllocsWithin[crypto.Hasher, crypto.Digest](0)),
+		cryptotest.HasherBenchOnCombineTagged(bench.PureAllocsWithin[crypto.Hasher, crypto.Digest](0)),
 	)
 }
 

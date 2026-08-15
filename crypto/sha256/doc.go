@@ -7,9 +7,10 @@
 // The implementation is stateless — the zero-value [Hasher] is
 // usable. [New] is provided as a constructor for use sites that
 // prefer one. [Hasher.Hash] calls [crypto/sha256.Sum256]
-// directly; [Hasher.Combine] writes the two input digests into a
-// stack-local 64-byte buffer (exactly one SHA-256 block) and
-// hashes that.
+// directly; [Hasher.CombineTagged] writes the role byte and the two
+// input digests into a stack-local 65-byte buffer and hashes that;
+// [Hasher.HashTagged] streams the role byte ahead of arbitrary-
+// length data through a pooled stream.
 //
 // All methods are zero-allocation on supported platforms.
 package sha256

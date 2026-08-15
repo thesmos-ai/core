@@ -49,14 +49,9 @@ func (id ID) String() string {
 //     algorithm name (for example "sha-256"). Persist it in
 //     artefacts that may outlive the producing build.
 //   - [Hasher.Hash] returns the [Digest] of the input bytes. Hot
-//     path for leaf commitments.
-//   - [Hasher.Combine] returns the [Digest] of left || right.
-//     Hot path for chain extension and Merkle accumulator
-//     construction. left and right must have [Digest.Size] equal
-//     to this Hasher's output size; a mismatch panics with a
-//     diagnostic message rather than silently producing a
-//     truncated digest. See the package "Failure semantics"
-//     section.
+//     path for content addressing, where the address must be the
+//     digest OF the bytes and nothing else. Leaves of a tree or
+//     chain use [Hasher.HashTagged] instead.
 //   - [Hasher.HashTagged] returns the [Digest] of the input bytes
 //     under a unary [Role]. Hot path for the leaves of a tree or
 //     chain, where the payload is caller-supplied and could
@@ -73,13 +68,20 @@ func (id ID) String() string {
 //
 // # Domain separation
 //
-// [Hasher.Hash] and [Hasher.Combine] are the same function over
-// different arities, so a caller-chosen payload of exactly two
-// digest widths hashes to a legitimate interior node. Anything
-// building a tree or a chain over caller-supplied leaves uses the
-// tagged pair instead, where a [Role] byte separates the two
+// There is no untagged two-operand combine. An unprefixed
+// H(left || right) is indistinguishable from the hash of a
+// caller-chosen payload of exactly two digest widths, which is how
+// a fabricated entry verifies against a shortened authentication
+// path; the operation was removed rather than documented, because
+// its only correct uses are the tagged ones. Anything building a
+// tree or a chain uses [Hasher.HashTagged] and
+// [Hasher.CombineTagged], where a [Role] byte separates the two
 // constructions and the role's high bit keeps a leaf role and a
 // node role from ever sharing one. See [Role].
+//
+// [Hasher.Hash] survives untagged because a content address must be
+// the digest OF the bytes: prefixing it would make the address name
+// something the bytes are not.
 //
 // # Concurrency
 //
@@ -91,7 +93,7 @@ func (id ID) String() string {
 // # Allocation contract
 //
 // [Hasher.ID], [Hasher.Algorithm], [Hasher.Hash],
-// [Hasher.Combine], [Hasher.HashTagged], and
+// [Hasher.HashTagged], and
 // [Hasher.CombineTagged] are zero-allocation on every
 // implementation in this module — [Hasher.HashTagged] on the warm
 // path, since it borrows a [Stream] from the same pool
@@ -107,21 +109,14 @@ type Hasher interface {
 	// that may outlive the producing build.
 	Algorithm() Algorithm
 
-	// Hash returns the [Digest] of data. Hot path for leaf
-	// commitments. Zero-allocation on every implementation in
-	// this module.
-	Hash(data []byte) Digest
-
-	// Combine returns the [Digest] of left || right. Hot path
-	// for chain extension and Merkle accumulator construction.
-	// left and right must have [Digest.Size] equal to this
-	// Hasher's output size; a mismatch panics with a diagnostic
-	// message rather than silently producing a truncated digest.
-	// See the package "Failure semantics" section.
+	// Hash returns the [Digest] of data. Hot path for content
+	// addressing, where the address must be the digest OF the
+	// bytes and nothing else. Zero-allocation on every
+	// implementation in this module.
 	//
-	//nolint:dupword // testkit directive: one builder per parameter, positional
-	//testkit:sample SampleDigest SampleDigest
-	Combine(left, right Digest) Digest
+	// A leaf of a tree or chain uses [Hasher.HashTagged]: an
+	// unprefixed leaf hash can be made to equal an interior node.
+	Hash(data []byte) Digest
 
 	// HashTagged returns the [Digest] of data under r, a unary
 	// [Role]. Hot path for the leaves of a tree or chain, where

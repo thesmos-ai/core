@@ -27,13 +27,6 @@ func (h *stdlibHasher) Hash(data []byte) crypto.Digest {
 	return digestFromBytes(h.spec.Sum(data))
 }
 
-func (h *stdlibHasher) Combine(left, right crypto.Digest) crypto.Digest {
-	concat := make([]byte, 0, left.Size()+right.Size())
-	concat = append(concat, left.Bytes()...)
-	concat = append(concat, right.Bytes()...)
-	return digestFromBytes(h.spec.Sum(concat))
-}
-
 func (h *stdlibHasher) HashTagged(r crypto.Role, data []byte) crypto.Digest {
 	if !r.IsUnary() {
 		panic(fmt.Sprintf( //nolint:forbidigo

@@ -64,27 +64,56 @@ func HasherHashAction() model.Action[crypto.Hasher] {
 	})
 }
 
-// HasherCombineAction returns a [model.Action] that draws two
-// random byte slices via rapid, hashes each through the SUT to
-// produce two correctly-sized digests, then asserts byte-exact
-// equivalence between SUT.Combine and reference.Combine over
-// those digests. Hashing through the SUT side-steps the digest-
-// size matching constraint that [crypto.Hasher.Combine] enforces
-// by panic. On failure rapid shrinks to the minimal divergent
-// input pair.
-func HasherCombineAction() model.Action[crypto.Hasher] {
-	return action.Unknown[crypto.Hasher]("Combine", func(rt *model.T, sut, ref crypto.Hasher) model.ActionResult {
+// HasherHashTaggedAction returns a [model.Action] that draws a
+// random unary [crypto.Role] and byte slice via rapid and asserts
+// byte-exact equivalence between SUT.HashTagged and
+// reference.HashTagged. The role is drawn from the unary half only —
+// the binary half is a documented panic, and a model action that
+// tripped it would be testing the guard rather than the layout,
+// which [HasherContractAssertions] already does. On failure rapid
+// shrinks to the minimal divergent input.
+func HasherHashTaggedAction() model.Action[crypto.Hasher] {
+	return action.Unknown[crypto.Hasher]("HashTagged", func(rt *model.T, sut, ref crypto.Hasher) model.ActionResult {
+		role := crypto.Role(model.Byte().Draw(rt, "role") &^ 0x80)
+		data := model.SliceOfN(model.Byte(), 0, 1024).Draw(rt, "data")
+		sutD := sut.HashTagged(role, data)
+		refD := ref.HashTagged(role, data)
+		if !sutD.Equal(refD) {
+			return model.ActionResult{
+				Err: fmt.Errorf(
+					"tagged hash diverges on role %#02x over %d-byte input: sut=%x ref=%x",
+					byte(role), len(data), sutD.Bytes(), refD.Bytes(),
+				),
+				Output: sutD,
+			}
+		}
+		return model.ActionResult{Output: sutD}
+	})
+}
+
+// HasherCombineTaggedAction returns a [model.Action] that draws a
+// random binary [crypto.Role] and two random byte slices via rapid,
+// hashes each slice through the SUT to produce two correctly-sized
+// digests, then asserts byte-exact equivalence between
+// SUT.CombineTagged and reference.CombineTagged over them. Hashing
+// through the SUT side-steps the digest-width constraint
+// [crypto.Hasher.CombineTagged] enforces by panic, and the role is
+// drawn from the binary half for the same reason. On failure rapid
+// shrinks to the minimal divergent input pair.
+func HasherCombineTaggedAction() model.Action[crypto.Hasher] {
+	return action.Unknown[crypto.Hasher]("CombineTagged", func(rt *model.T, sut, ref crypto.Hasher) model.ActionResult {
+		role := crypto.Role(model.Byte().Draw(rt, "role") | 0x80)
 		left := model.SliceOfN(model.Byte(), 0, 256).Draw(rt, "left")
 		right := model.SliceOfN(model.Byte(), 0, 256).Draw(rt, "right")
 		l := sut.Hash(left)
 		r := sut.Hash(right)
-		sutD := sut.Combine(l, r)
-		refD := ref.Combine(l, r)
+		sutD := sut.CombineTagged(role, l, r)
+		refD := ref.CombineTagged(role, l, r)
 		if !sutD.Equal(refD) {
 			return model.ActionResult{
 				Err: fmt.Errorf(
-					"combine diverges: sut=%x ref=%x",
-					sutD.Bytes(), refD.Bytes(),
+					"tagged combine diverges on role %#02x: sut=%x ref=%x",
+					byte(role), sutD.Bytes(), refD.Bytes(),
 				),
 				Output: sutD,
 			}

@@ -43,20 +43,13 @@ func TestSHA256HasherContract(t *testing.T) {
 			cryptotest.HasherIDAssertion(sha256ID),
 			cryptotest.HasherAlgorithmAssertion(crypto.AlgSHA256),
 			cryptotest.HasherCrossStdlibAssertion(stdlibSpec.Sum),
-			cryptotest.HasherCombinePanicsOnSizeMismatch(
-				crypto.DigestSize256,
-				crypto.NewDigest384([crypto.DigestSize384]byte{}),
-			),
-			cryptotest.HasherCombineAdmitsZeroDigest(
-				crypto.NewDigest256([crypto.DigestSize256]byte{}),
-			),
 		)...,
 	)
 }
 
 // TestSHA256HasherModel drives random byte sequences through
 // both the SUT and a stdlib-backed reference, asserting byte-
-// exact equivalence on every Hash and Combine call. Failures
+// exact equivalence on every Hash and tagged call. Failures
 // shrink to the minimal divergent input via rapid.
 func TestSHA256HasherModel(t *testing.T) {
 	t.Parallel()
@@ -66,7 +59,8 @@ func TestSHA256HasherModel(t *testing.T) {
 		}),
 		cryptotest.HasherModelExtraActions(
 			cryptotest.HasherHashAction(),
-			cryptotest.HasherCombineAction(),
+			cryptotest.HasherHashTaggedAction(),
+			cryptotest.HasherCombineTaggedAction(),
 		),
 	)
 }
@@ -81,7 +75,8 @@ func FuzzSHA256HasherModel(f *testing.F) {
 		}),
 		cryptotest.HasherModelExtraActions(
 			cryptotest.HasherHashAction(),
-			cryptotest.HasherCombineAction(),
+			cryptotest.HasherHashTaggedAction(),
+			cryptotest.HasherCombineTaggedAction(),
 		),
 	)
 }
@@ -89,13 +84,14 @@ func FuzzSHA256HasherModel(f *testing.F) {
 // BenchmarkSHA256Hasher runs the standard Hasher bench contract
 // — auto hot-path measurement for every method plus
 // PureAllocsWithin(0) gates for the documented zero-alloc paths
-// (Hash, Combine, Algorithm, ID).
+// (Hash, the tagged pair, Algorithm, ID).
 func BenchmarkSHA256Hasher(b *testing.B) {
 	cryptotest.BenchmarkHasherContract(b, newHasher,
 		cryptotest.HasherBenchOnAlgorithm(bench.PureAllocsWithin[crypto.Hasher, crypto.Algorithm](0)),
 		cryptotest.HasherBenchOnID(bench.PureAllocsWithin[crypto.Hasher, crypto.ID](0)),
 		cryptotest.HasherBenchOnHash(bench.PureAllocsWithin[crypto.Hasher, crypto.Digest](0)),
-		cryptotest.HasherBenchOnCombine(bench.PureAllocsWithin[crypto.Hasher, crypto.Digest](0)),
+		cryptotest.HasherBenchOnHashTagged(bench.PureAllocsWithin[crypto.Hasher, crypto.Digest](0)),
+		cryptotest.HasherBenchOnCombineTagged(bench.PureAllocsWithin[crypto.Hasher, crypto.Digest](0)),
 	)
 }
 

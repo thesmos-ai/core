@@ -48,6 +48,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Breaking:** `crypto.Hasher.Combine` is removed. An unprefixed
+  `H(left || right)` is indistinguishable from the hash of a
+  caller-chosen payload of two digest widths, which is how a
+  fabricated entry verifies against a shortened authentication
+  path; every correct use is now `CombineTagged`. The zero
+  `Digest` goes with it — it is the uninitialised value, valid
+  nowhere, and a chain's first link is a unary role over one
+  operand rather than a combine with an absent one. `Hash` is
+  unchanged and stays untagged for content addressing. See
+  RFC-0029, ADR-0013 and ADR-0014.
 - `version.Version` is equality-only by documented law: it proves
   identity, never order. Ordering across time is `epoch.Epoch`'s
   axis. See RFC-0026.

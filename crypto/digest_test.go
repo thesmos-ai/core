@@ -406,10 +406,10 @@ func TestDigestZeroHasNoBinaryEncoding(t *testing.T) {
 		testkit.Equal(t, got, []byte{0xAA}, "AppendBinary must leave dst unchanged on error")
 	})
 
-	t.Run("UnmarshalBinary rejects empty input rather than decoding the sentinel", func(t *testing.T) {
+	t.Run("UnmarshalBinary rejects empty input rather than decoding the zero value", func(t *testing.T) {
 		t.Parallel()
-		// A truncated read must not decode back into a genesis
-		// anchor — that is the hazard ADR-0007 rules out.
+		// A truncated read must not decode back into a digest the
+		// caller never wrote — the zero Digest has no wire form.
 		var d crypto.Digest
 		testkit.ErrorIs(t, d.UnmarshalBinary(nil), crypto.ErrDigestSize,
 			"empty input must be a size error, not the zero Digest")

@@ -101,9 +101,9 @@ func NewDigest512(b [DigestSize512]byte) Digest {
 //
 // Returns [ErrDigestSize] unless len(b) is exactly [DigestSize256],
 // [DigestSize384], or [DigestSize512]. The zero-length case is
-// included: the zero [Digest] is an in-memory sentinel with no wire
-// form, so decoding one back from empty input would turn every
-// truncated read into a genesis anchor. See ADR-0007.
+// included: the zero [Digest] is the uninitialised value and has no
+// wire form, so decoding one back from empty input would turn every
+// truncated read into a digest the caller never wrote.
 //
 // b is copied; the returned Digest does not alias it.
 //
@@ -206,17 +206,28 @@ func (d Digest) Bytes() []byte {
 	return d.bytes[:d.size]
 }
 
-// IsZero reports whether d is the zero [Digest] (size 0, all
-// bytes zero). The zero Digest is the conventional sentinel for
-// "no digest computed" — for example, the predecessor anchor of
-// the genesis entry in a hash chain.
+// IsZero reports whether d is the zero [Digest] (size 0, all bytes
+// zero) — the uninitialised value, valid nowhere.
 //
-// [Hasher.Combine] accepts the zero Digest as either operand and
-// zero-pads it to the hasher's width, so the genesis case needs no
-// branch at the call site. Every other size mismatch panics. The
-// zero Digest has no binary encoding: it is an in-memory sentinel,
-// and absence on the wire is the containing format's job. See
-// ADR-0007.
+// It carries no meaning beyond that. It was once the sentinel for a
+// hash chain's genesis anchor, admitted into a combine and zero-
+// padded to the hasher's width; the meaning was unreadable from the
+// type, because a reader meeting size 0 implements the hash of the
+// leaf alone while the implementation prefixed 32 zero bytes, and
+// the two verifiers disagree at a chain's first entry. Genesis is
+// now a unary [Role] over one operand, and every hashing operation
+// refuses this value.
+//
+// The predicate survives the sentinel because detecting an
+// uninitialised value is ordinary, and because
+// [Hasher.CombineTagged] uses it to tell a caller that what they
+// reached for is gone rather than reporting a width mismatch.
+//
+// The zero Digest has no binary encoding: marshalling it returns an
+// error and every decode path rejects zero-length input, so a
+// truncated read or an absent field cannot decode to a digest.
+// Encoding absence is the containing format's job, as it is for any
+// other optional field.
 func (d Digest) IsZero() bool {
 	return d == Digest{}
 }

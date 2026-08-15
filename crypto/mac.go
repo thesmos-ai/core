@@ -15,9 +15,9 @@ package crypto
 //   - The output is keyed. Two MAC instances built over the same
 //     algorithm but different keys produce uncorrelated outputs
 //     for the same input.
-//   - There is no [Hasher.Combine] analogue. HMAC and related
+//   - There is no [Hasher.CombineTagged] analogue. HMAC and related
 //     constructions do not compose tree-wise:
-//     `MAC(K, a||b) ≠ Combine(MAC(K, a), MAC(K, b))`.
+//     `MAC(K, a||b) ≠ MAC(K, a) combined with MAC(K, b)`.
 //   - Verification is a first-class operation. [MAC.Verify]
 //     compares an expected MAC against a freshly-computed one in
 //     constant time, closing the timing-oracle hazard that a

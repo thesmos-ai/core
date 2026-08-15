@@ -17,10 +17,11 @@ var (
 	ErrDigestSize = errors.New("crypto: digest length must be 32, 48, or 64 bytes")
 
 	// ErrDigestZero is returned when the zero [Digest] is marshalled.
-	// The zero Digest is an in-memory sentinel with no wire form:
-	// encoding it as zero bytes would make every truncated read
-	// decode back into a genesis anchor. Encoding the absence of a
-	// digest is the containing format's job. See ADR-0007.
+	// The zero Digest is the uninitialised value and has no wire
+	// form: encoding it as zero bytes would make every truncated
+	// read decode back into a digest the caller never wrote.
+	// Encoding the absence of a digest is the containing format's
+	// job.
 	ErrDigestZero = errors.New("crypto: the zero digest has no binary encoding")
 
 	// ErrKeySize is returned when a key's length does not match any
