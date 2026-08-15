@@ -30,7 +30,8 @@ func (h *stdlibHasher) Hash(data []byte) crypto.Digest {
 func (h *stdlibHasher) HashTagged(r crypto.Role, data []byte) crypto.Digest {
 	if !r.IsUnary() {
 		panic(fmt.Sprintf( //nolint:forbidigo
-			"cryptotest: HashTagged requires a unary role (high bit clear), got %#02x", byte(r)))
+			"cryptotest: HashTagged requires a unary role (high bit clear), got %#02x", byte(r),
+		))
 	}
 	tagged := make([]byte, 0, 1+len(data))
 	tagged = append(tagged, byte(r))
@@ -42,11 +43,13 @@ func (h *stdlibHasher) HashTagged(r crypto.Role, data []byte) crypto.Digest {
 func (h *stdlibHasher) CombineTagged(r crypto.Role, left, right crypto.Digest) crypto.Digest {
 	if !r.IsBinary() {
 		panic(fmt.Sprintf( //nolint:forbidigo
-			"cryptotest: CombineTagged requires a binary role (high bit set), got %#02x", byte(r)))
+			"cryptotest: CombineTagged requires a binary role (high bit set), got %#02x", byte(r),
+		))
 	}
 	if left.IsZero() || right.IsZero() {
 		panic( //nolint:forbidigo
-			"cryptotest: CombineTagged refuses the zero Digest; the genesis sentinel is retired")
+			"cryptotest: CombineTagged refuses the zero Digest; the genesis sentinel is retired",
+		)
 	}
 	concat := make([]byte, 0, 1+left.Size()+right.Size())
 	concat = append(concat, byte(r))

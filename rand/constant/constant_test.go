@@ -141,7 +141,8 @@ func TestReadTerminates(t *testing.T) {
 			// already hung.
 			//nolint:forbidigo // only a process crash escapes the parallel siblings this mutant has already hung; see the seeded twin
 			panic(fmt.Sprintf(
-				"constant: Read(len %d) did not return — the fill loop no longer terminates", size))
+				"constant: Read(len %d) did not return — the fill loop no longer terminates", size,
+			))
 		}
 	}
 

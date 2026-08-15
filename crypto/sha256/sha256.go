@@ -169,7 +169,8 @@ func (Hasher) CombineTagged(r crypto.Role, left, right crypto.Digest) crypto.Dig
 		panic( //nolint:forbidigo
 			"crypto/sha256: CombineTagged refuses the zero Digest; " +
 				"the genesis sentinel is retired — a chain's first link is " +
-				"a unary role over one operand")
+				"a unary role over one operand",
+		)
 	}
 	if !sized(left) || !sized(right) {
 		panic(fmt.Sprintf( //nolint:forbidigo

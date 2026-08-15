@@ -223,7 +223,8 @@ func (c *Clock) AwaitWaiters(n int) {
 			panic(fmt.Sprintf( //nolint:forbidigo // a hung test helper is a programmer error; see Failure semantics
 				"clock/fake: AwaitWaiters(%d) gave up after %s with %d waiter(s) registered — "+
 					"the awaited goroutines never called a blocking clock operation",
-				n, bound, count))
+				n, bound, count,
+			))
 		}
 
 		runtime.Gosched()

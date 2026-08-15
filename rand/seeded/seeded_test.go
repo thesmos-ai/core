@@ -172,7 +172,8 @@ func TestReadTerminates(t *testing.T) {
 			// Crashing the process is the entire job of this watchdog.
 			//nolint:forbidigo // only a process crash escapes the parallel siblings this mutant has already hung; see the comment above
 			panic(fmt.Sprintf(
-				"seeded: Read(len %d) did not return — the fill loop no longer terminates", size))
+				"seeded: Read(len %d) did not return — the fill loop no longer terminates", size,
+			))
 		}
 	}
 
