@@ -90,7 +90,8 @@ Start from [`docs/templates/RFC.md`](../templates/RFC.md).
 | [0025](0025-fixed-point-decimals.md) | Fixed-Point Decimals | Accepted |
 | [0026](0026-ordering-and-fencing.md) | Ordering and Fencing | Accepted |
 | [0027](0027-content-addressed-storage.md) | Content-Addressed Storage | Accepted |
-| [0028](0028-named-object-storage.md) | Named Object Storage | Draft |
+| [0028](0028-named-object-storage.md) | Named Object Storage | Accepted |
+| [0029](0029-domain-separated-tree-hashing.md) | Domain-Separated Tree Hashing | Accepted |
 
 ## Canonical first RFC
 
