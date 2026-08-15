@@ -1,17 +1,33 @@
 ---
 adr: 0007
 title: The Zero Digest Is a Valid Chain Genesis
-status: Accepted
+status: Superseded
 date: 2026-08-03
 supersedes: none
-superseded-by: none
+superseded-by: ADR-0013, ADR-0014
 ---
 
 # ADR-0007: The Zero Digest Is a Valid Chain Genesis
 
 ## Status
 
-Accepted
+Superseded by
+[ADR-0013: Tagged Tree Hashing on the Hasher Interface](0013-tagged-tree-hashing-on-the-interface.md)
+and
+[ADR-0014: The Genesis Sentinel Is Deleted, Not Documented](0014-genesis-sentinel-is-deleted.md).
+
+This ADR dies on two independent grounds. Its rejection of an operand
+prefix rested on a false arithmetic premise — a 64-byte SHA-256 input
+never was a single compression block — and the `Combine` it governed is
+deleted; ADR-0013 records both. Its sentinel is deleted rather than
+documented, because the value's meaning proved unreadable from its
+type; ADR-0014 records that.
+
+One decision below survives its parent: the zero `Digest` has no wire
+form. Marshalling it returns an error and every decode path rejects
+zero-length input. That rule is independent of whether any operation
+admits the value in memory, and ADR-0014 restates it so it remains in
+force.
 
 ## Context
 
